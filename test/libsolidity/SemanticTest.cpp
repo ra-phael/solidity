@@ -31,6 +31,7 @@
 #include <optional>
 #include <stdexcept>
 #include <utility>
+#include <functional>
 
 using namespace std;
 using namespace solidity;
@@ -61,6 +62,8 @@ SemanticTest::SemanticTest(
 	m_enforceGasCost(_enforceGasCost),
 	m_enforceGasCostMinValue(_enforceGasCostMinValue)
 {
+	initializeBuiltins();
+
 	string choice = m_reader.stringSetting("compileViaYul", "default");
 	if (choice == "also")
 	{
@@ -120,6 +123,21 @@ SemanticTest::SemanticTest(
 		m_compiler.setMetadataFormat(CompilerStack::MetadataFormat::NoMetadata);
 		m_compiler.setMetadataHash(CompilerStack::MetadataHash::None);
 	}
+}
+
+void SemanticTest::initializeBuiltins()
+{
+	m_builtins["account_balance"] = [this](FunctionCall const& _call) -> std::optional<bytes>
+	{
+	  soltestAssert(_call.arguments.parameters.size() == 1, "Account address expected.");
+	  h160 address = h160(_call.arguments.parameters.at(0).rawString);
+	  return util::toBigEndian(SolidityExecutionFramework::balanceAt(address));
+	};
+	m_builtins["contract_balance"] = [this](FunctionCall const& _call) -> std::optional<bytes>
+	{
+	  soltestAssert(_call.arguments.parameters.empty(), "No arguments expected.");
+	  return util::toBigEndian(SolidityExecutionFramework::balanceAt(m_contractAddress));
+	};
 }
 
 TestCase::TestResult SemanticTest::run(ostream& _stream, string const& _linePrefix, bool _formatted)
